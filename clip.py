@@ -7,6 +7,7 @@
 import re
 import sys
 import random
+import zlib, base64
 import urllib, urllib2
 
 class KeyValUtils:
@@ -14,9 +15,10 @@ class KeyValUtils:
   # Please change the unique prefix before using
   # import random
   # ''.join(random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_') for n in xrange(30))
-  _unique_prefix = 'DehyI68s607EbrMVN3Vo4Q59ORjKoj'
+  _unique_prefix = 'bDehyI68s607EbrMVN3Vo4Q59ORjKoj'
   _words = '/usr/share/dict/words'
   _unique_key_hunt_retry_count = 20
+  _maintain_index = True
 
   def generate_key(self):
     words_file = open(self._words, 'r')
@@ -40,6 +42,26 @@ class KeyValUtils:
           raise Exception('Remote store is inaccessible/misbehaving')
     raise Exception('Exceeded unique key hunt retry count - check your words file')
 
+  def index(self):
+    try:
+      response = urllib2.urlopen('https://secure.openkeyval.org/%sINDEX' % self._unique_prefix)
+      return set(zlib.decompress(base64.b64decode(response.read())).split(','))
+    except urllib2.HTTPError, e:
+      if e.code == 404:
+        return set()
+      else:
+        raise e
+
+  def _write_index(self, index):
+    index_data = base64.b64encode(zlib.compress(','.join(index)))
+    new_index = urllib.urlencode({'data': index_data})
+    request = urllib2.Request('https://secure.openkeyval.org/%sINDEX' % self._unique_prefix, new_index)
+    try:
+      response = urllib2.urlopen(request)
+    except urllib2.HTTPError, e:
+      sys.stderr.write("Unable to write index record")
+      raise e
+
   def store(self, value, key=None):
     if key is not None:
       if not self.get_valid_key_regex().match(key):
@@ -50,6 +72,12 @@ class KeyValUtils:
     data = urllib.urlencode({'data': value})
     request = urllib2.Request('https://secure.openkeyval.org/%s-%s' % (self._unique_prefix, key), data)
     response = urllib2.urlopen(request)
+
+    if self._maintain_index:
+      index = self.index()
+      index.add(key)
+      self._write_index(index)
+
     return key
 
   def fetch(self, key):
@@ -62,6 +90,13 @@ class KeyValUtils:
     data = urllib.urlencode({'data': ''})
     request = urllib2.Request('https://secure.openkeyval.org/%s-%s' % (self._unique_prefix, key), data)
     response = urllib2.urlopen(request)
+
+    if self._maintain_index:
+      index = self.index()
+      if key in index:
+        index.remove(key)
+        self._write_index(index)
+
     return 'deleted' in response.read()
 
   def get_valid_key_regex(self):
@@ -79,16 +114,19 @@ def main():
   paste.add_argument('-p', '--paste', dest='paste', action='store_true', default=False, help='later')
   delete = parser.add_mutually_exclusive_group()
   delete.add_argument('-d', '--delete', dest='delete', action='store_true', default=False, help='later')
+  index = parser.add_mutually_exclusive_group()
+  index.add_argument('-i', '--index', dest='index', action='store_true', default=False, help='later')
   
   namespace, extra = parser.parse_known_args()
   
-  if not (namespace.copy or namespace.paste or namespace.delete):
+  if not (namespace.copy or namespace.paste or namespace.delete or namespace.index):
     if sys.stdin.isatty() and namespace.key is not None:
       namespace.paste = True
     else:
       namespace.copy = True
   
   correct_usage = namespace.copy \
+              or  namespace.index \
               or (namespace.paste and namespace.key is not None) \
               or (namespace.delete and namespace.key is not None)
 
@@ -114,6 +152,19 @@ def main():
     except urllib2.HTTPError, e:
       sys.stderr.write('Clip failed; response code %s\n' % e.code)
       exit(1)
+
+  if namespace.index:
+    try:
+      index = kv.index()
+      if index is not None:
+        for key in kv.index():
+          print key
+    except urllib2.HTTPError, e:
+      if e.code == 404:
+        sys.stderr.write('Index not found\n')
+      else:
+        raise e
+    exit()
 
   if namespace.paste and namespace.key is not None:
     outfile = sys.stdout
