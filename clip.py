@@ -53,7 +53,10 @@ class KeyValUtils:
         raise e
 
   def _write_index(self, index):
-    index_data = base64.b64encode(zlib.compress(','.join(index)))
+    if len(index) > 0:
+      index_data = base64.b64encode(zlib.compress(','.join(index)))
+    else:
+      index_data = ''
     new_index = urllib.urlencode({'data': index_data})
     request = urllib2.Request('https://secure.openkeyval.org/%sINDEX' % self._unique_prefix, new_index)
     try:
