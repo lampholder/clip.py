@@ -80,7 +80,10 @@ def main():
   namespace, extra = parser.parse_known_args()
   
   if not (namespace.copy or namespace.paste or namespace.delete):
-    namespace.copy = True
+    if sys.stdin.isatty() and namespace.key is not None:
+      namespace.paste = True
+    else:
+      namespace.copy = True
   
   correct_usage = namespace.copy \
               or (namespace.paste and namespace.key is not None) \
