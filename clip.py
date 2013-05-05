@@ -15,7 +15,7 @@ class KeyValUtils:
   # Please change the unique prefix before using
   # import random
   # ''.join(random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_') for n in xrange(30))
-  _unique_prefix = 'bDehyI68s607EbrMVN3Vo4Q59ORjKoj'
+  _unique_prefix = 'CehyI68s607EbrMVN3Vo4Q59ORjKoj'
   _words = '/usr/share/dict/words'
   _unique_key_hunt_retry_count = 20
   _maintain_index = True
@@ -104,31 +104,30 @@ class KeyValUtils:
 
 
 def main():
-  from argparse import ArgumentParser
+  from optparse import OptionParser
   
-  parser = ArgumentParser()
-  parser.add_argument('key', nargs='?', default=None, help='Later')
-  copy = parser.add_mutually_exclusive_group()
-  copy.add_argument('-c', '--copy', dest='copy', action='store_true', default=False, help='later')
-  paste = parser.add_mutually_exclusive_group()
-  paste.add_argument('-p', '--paste', dest='paste', action='store_true', default=False, help='later')
-  delete = parser.add_mutually_exclusive_group()
-  delete.add_argument('-d', '--delete', dest='delete', action='store_true', default=False, help='later')
-  index = parser.add_mutually_exclusive_group()
-  index.add_argument('-i', '--index', dest='index', action='store_true', default=False, help='later')
+  parser = OptionParser()
+  parser.add_option('-c', '--copy', dest='copy', action='store_true', default=False, help='later')
+  parser.add_option('-p', '--paste', dest='paste', action='store_true', default=False, help='later')
+  parser.add_option('-d', '--delete', dest='delete', action='store_true', default=False, help='later')
+  parser.add_option('-i', '--index', dest='index', action='store_true', default=False, help='later')
   
-  namespace, extra = parser.parse_known_args()
+  namespace, extra = parser.parse_args()
+
+  key = None
+  if len(extra) > 0:
+    key = extra[0]
   
   if not (namespace.copy or namespace.paste or namespace.delete or namespace.index):
-    if sys.stdin.isatty() and namespace.key is not None:
+    if sys.stdin.isatty() and key is not None:
       namespace.paste = True
     else:
       namespace.copy = True
   
   correct_usage = namespace.copy \
               or  namespace.index \
-              or (namespace.paste and namespace.key is not None) \
-              or (namespace.delete and namespace.key is not None)
+              or (namespace.paste and key is not None) \
+              or (namespace.delete and key is not None)
 
   if not correct_usage:
     parser.print_help();
@@ -146,7 +145,7 @@ def main():
         sys.stderr.write('Input too large; 64 KiB maximum\n')
         exit(1)
     try:
-      key = kv.store(key=namespace.key, value=value)
+      key = kv.store(key=key, value=value)
       print 'Clipped to \'%s\'' % key
       exit()
     except urllib2.HTTPError, e:
@@ -166,24 +165,24 @@ def main():
         raise e
     exit()
 
-  if namespace.paste and namespace.key is not None:
+  if namespace.paste and key is not None:
     outfile = sys.stdout
     try:
-      outfile.write(kv.fetch(namespace.key))
+      outfile.write(kv.fetch(key))
       exit()
     except urllib2.HTTPError, e:
       if e.code == 404:
-        sys.stderr.write('No clip \'%s\'\n' % namespace.key)
+        sys.stderr.write('No clip \'%s\'\n' % key)
       else:
         sys.stderr.write('Failed to fetch clip; response code %s\n' % e.code)
       exit(1)
   
-  if namespace.delete and namespace.key is not None:
+  if namespace.delete and key is not None:
     try:
-      if kv.delete(namespace.key):
-        print 'Deleted clip \'%s\'' % namespace.key
+      if kv.delete(key):
+        print 'Deleted clip \'%s\'' % key
       else:
-        print 'No clip \'%s\'' % namespace.key
+        print 'No clip \'%s\'' % key
       exit()
     except urllib2.HTTPError, e:
       sys.stderr.write('Failed to delete clip; response code %s\n' % e.code)
