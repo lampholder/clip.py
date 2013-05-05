@@ -1,6 +1,9 @@
 #!/usr/bin/python
 # This Python file uses the following encoding: utf-8
 
+# Because I'm always forgetting even basic git syntax:
+# git clone git://github.com/lampholder/clip.py
+
 import re
 import sys
 import random
@@ -102,7 +105,7 @@ def main():
     for line in infile:
       value += line
       if len(value) > 65536:
-        sys.stderr.write('Input too large; 64 KiB maximum')
+        sys.stderr.write('Input too large; 64 KiB maximum\n')
         exit(1)
     try:
       key = kv.store(key=namespace.key, value=value)
